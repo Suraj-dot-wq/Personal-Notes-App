@@ -1,6 +1,8 @@
 services:
   nginx:
-    build: ./nginx
+    build:
+      context: .
+      dockerfile: nginx/Dockerfile
     image: nginx
     container_name: nginx_cont
     ports:
