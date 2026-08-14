@@ -1,6 +1,6 @@
 pipeline {
     agent {
-        label 'vivek'
+        label 'suraj'
     }
 
     stages {
