@@ -1,4 +1,4 @@
-# Simple Notes App for TWS Community
+# This is my Django Personal Notes App deployment project
 This is a simple notes app built with React and Django.
 
 ## Requirements
