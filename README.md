@@ -1,30 +1,72 @@
-# This is my Django Personal Notes App deployment project
-This is a simple notes app built with React and Django.
+# Personal Notes App
 
-## Requirements
-1. Python 3.9
-2. Node.js
-3. React
+A full-stack Personal Notes application built with **React** and **Django**, containerized using **Docker**, and deployed on **AWS EC2**.
 
-## Installation
-1. Clone the repository
-```
-git clone https://github.com/Suraj-dot-wq/django-notes-app.git
-```
+The project also includes an automated **Jenkins CI/CD pipeline** with a Jenkins Controller-Agent architecture, GitHub Webhook triggers, Docker Hub image publishing, and automated deployment using Docker Compose.
 
-2. Build the app
-```
-docker build -t notes-app .
-```
+---
 
-3. Run the app
-```
-docker run -d -p 8000:8000 notes-app:latest
-```
+## 🚀 Project Overview
 
-## Nginx
+This project demonstrates how a full-stack web application can be containerized and deployed using DevOps tools and practices.
 
-Install Nginx reverse proxy to make this application available
+### Application
 
-`sudo apt-get update`
-`sudo apt install nginx`
+- React frontend
+- Django backend
+- Python
+- Node.js
+
+### DevOps & Deployment
+
+- Linux / Ubuntu
+- Git & GitHub
+- Docker
+- Docker Compose
+- Nginx
+- Jenkins
+- Jenkins Remoting
+- AWS EC2
+- Docker Hub
+- GitHub Webhooks
+
+---
+
+## 🏗️ Architecture
+
+```text
+                         Developer
+                             |
+                             | git push
+                             v
+                        GitHub
+                             |
+                             | Webhook
+                             v
+                   Jenkins Controller
+                      AWS EC2 Instance
+                             |
+                             | Jenkins Remoting
+                             v
+                    Jenkins Agent
+                      AWS EC2 Instance
+                             |
+             +---------------+---------------+
+             |               |               |
+             v               v               v
+        Git Checkout    Docker Build    Docker Deployment
+                             |
+                             v
+                        Docker Hub
+                             |
+                             v
+                      Docker Compose
+                             |
+                             v
+                       Application
+                             |
+                             v
+                           Nginx
+                             |
+                             v
+                           Users
