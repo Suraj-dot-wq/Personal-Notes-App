@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import ListItem from '../components/ListItem.js';
-import Sidebar from '../components/Sidebar.js';
+import Sidebar from '../components/sidebar.js';
 import AddButton from '../components/AddButton.js';
 import { apiFetch, logout } from '../api.js';
 import { useToast } from '../components/Toast.js';
