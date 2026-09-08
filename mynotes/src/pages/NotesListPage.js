@@ -1,181 +1,150 @@
-import React, { useState, useEffect } from 'react';
-import ListItem from '../components/ListItem.js';
-import AddButton from '../components/AddButton.js';
-import Sidebar from '../components/sidebar.js';
-import NoteSkeleton from '../components/NoteSkeleton';
-import { useToast } from '../components/Toast';
-import { apiFetch, logout } from '../api';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
+import ListItem from '../components/ListItem.js';
+import Sidebar from '../components/Sidebar.js';
+import AddButton from '../components/AddButton.js';
+import { apiFetch, logout } from '../api.js';
+import { useToast } from '../components/Toast.js';
+
 const NotesListPage = () => {
+    const navigate = useNavigate();
+    const { showToast } = useToast();
+
     const [notes, setNotes] = useState([]);
     const [search, setSearch] = useState('');
     const [loading, setLoading] = useState(true);
 
-    const navigate = useNavigate();
-    const { showToast } = useToast();
-
     useEffect(() => {
-        getNotes();
-    }, []);
+        const fetchNotes = async () => {
+            try {
+                const response = await apiFetch('/notes/');
 
-    const getNotes = async () => {
-        try {
-            setLoading(true);
+                // Access token is invalid/expired
+                if (response.status === 401) {
+                    logout();
+                    setNotes([]);
+                    navigate('/login', { replace: true });
+                    showToast('Session expired. Please login again.', 'error');
+                    return;
+                }
 
-            const response = await apiFetch('/notes/');
+                if (!response.ok) {
+                    throw new Error(`Failed to load notes: ${response.status}`);
+                }
 
-            // Unauthorized
-            if (response.status === 401) {
-                logout();
+                const data = await response.json();
+
+                console.log('Notes API response:', data);
+
+                // Make sure we only store an array
+                if (Array.isArray(data)) {
+                    setNotes(data);
+                } else {
+                    console.error('Expected notes array but received:', data);
+                    setNotes([]);
+                    showToast('Unable to load notes.', 'error');
+                }
+
+            } catch (error) {
+                console.error('Unable to load notes:', error);
                 setNotes([]);
-                navigate('/login', { replace: true });
-
-                showToast(
-                    'Please log in to view your notes.',
-                    'error'
-                );
-
-                return;
+                showToast('Unable to load notes.', 'error');
+            } finally {
+                setLoading(false);
             }
+        };
 
-            // Other server errors
-            if (!response.ok) {
-                throw new Error('Failed to load notes');
-            }
+        fetchNotes();
+    }, [navigate, showToast]);
 
-            const data = await response.json();
-
-            // Make sure notes is always an array
-            if (Array.isArray(data)) {
-                setNotes(data);
-            } else {
-                console.error('Unexpected notes response:', data);
-                setNotes([]);
-                showToast(
-                    'Unable to load your notes.',
-                    'error'
-                );
-            }
-
-        } catch (error) {
-            console.error('Error loading notes:', error);
-
-            setNotes([]);
-
-            showToast(
-                'Unable to load your notes.',
-                'error'
-            );
-
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    // Extra protection against unexpected API responses
-    const safeNotes = Array.isArray(notes) ? notes : [];
-
-    const filteredNotes = safeNotes.filter((note) =>
-        (note.body || '')
-            .toLowerCase()
-            .includes(search.toLowerCase())
-    );
-
-    const recentNotes = safeNotes.filter((note) => {
-        if (!note.updated) {
-            return false;
+    const filteredNotes = useMemo(() => {
+        if (!Array.isArray(notes)) {
+            return [];
         }
 
-        const noteDate = new Date(note.updated);
-        const now = new Date();
+        const query = search.trim().toLowerCase();
 
-        const difference =
-            now.getTime() - noteDate.getTime();
+        if (!query) {
+            return notes;
+        }
 
-        return (
-            difference >= 0 &&
-            difference < 7 * 24 * 60 * 60 * 1000
+        return notes.filter((note) =>
+            (note.body || '').toLowerCase().includes(query)
         );
-    });
+    }, [notes, search]);
+
+    const recentNotes = useMemo(() => {
+        if (!Array.isArray(notes)) {
+            return [];
+        }
+
+        return notes.filter((note) => {
+            if (!note.updated) {
+                return false;
+            }
+
+            const updatedDate = new Date(note.updated);
+            const now = new Date();
+
+            const difference =
+                (now.getTime() - updatedDate.getTime()) /
+                (1000 * 60 * 60 * 24);
+
+            return difference <= 7;
+        });
+    }, [notes]);
+
+    if (loading) {
+        return (
+            <div className="dashboard-layout">
+                <Sidebar
+                    noteCount={0}
+                    recentCount={0}
+                    search={search}
+                    setSearch={setSearch}
+                />
+
+                <main className="dashboard">
+                    <div className="empty-state">
+                        <h3>Loading notes...</h3>
+                        <p>Please wait while your notes are loaded.</p>
+                    </div>
+                </main>
+            </div>
+        );
+    }
 
     return (
-        <main className="dashboard-layout">
+        <div className="dashboard-layout">
 
             <Sidebar
-                noteCount={safeNotes.length}
+                noteCount={notes.length}
                 recentCount={recentNotes.length}
                 search={search}
                 setSearch={setSearch}
             />
 
-            <section className="dashboard">
+            <main className="dashboard">
 
                 <section className="dashboard-hero">
-
-                    <div>
-
-                        <span className="eyebrow">
-                            YOUR WORKSPACE
-                        </span>
-
-                        <h2>
-                            Your thoughts,
-                            <br />
-                            <span>organized.</span>
-                        </h2>
-
-                        <p>
-                            Capture ideas, organize your thoughts,
-                            and keep everything in one secure place.
-                        </p>
-
-                    </div>
-
+                    <h2>Your ideas, organized.</h2>
+                    <p>
+                        Capture your thoughts, manage your notes,
+                        and keep everything accessible in one place.
+                    </p>
                 </section>
 
                 <section className="stats-grid">
 
                     <div className="stat-card">
-
-                        <div className="stat-icon">
-                            📝
-                        </div>
-
-                        <div>
-                            <span>Total notes</span>
-                            <strong>{safeNotes.length}</strong>
-                        </div>
-
+                        <h3>{notes.length}</h3>
+                        <p>Total Notes</p>
                     </div>
 
                     <div className="stat-card">
-
-                        <div className="stat-icon">
-                            ✨
-                        </div>
-
-                        <div>
-                            <span>Last 7 days</span>
-
-                            <strong>
-                                {recentNotes.length}
-                            </strong>
-                        </div>
-
-                    </div>
-
-                    <div className="stat-card">
-
-                        <div className="stat-icon">
-                            🔐
-                        </div>
-
-                        <div>
-                            <span>Privacy</span>
-                            <strong>Protected</strong>
-                        </div>
-
+                        <h3>{recentNotes.length}</h3>
+                        <p>Recent Notes</p>
                     </div>
 
                 </section>
@@ -183,129 +152,56 @@ const NotesListPage = () => {
                 <section className="notes-section">
 
                     <div className="notes-toolbar">
-
                         <div>
+                            <h2>All Notes</h2>
+                            <p>
+                                {filteredNotes.length} note
+                                {filteredNotes.length !== 1 ? 's' : ''}
+                            </p>
+                        </div>
 
-                            <h2>Your notes</h2>
+                        <input
+                            className="desktop-search"
+                            type="text"
+                            placeholder="Search notes..."
+                            value={search}
+                            onChange={(e) => setSearch(e.target.value)}
+                        />
+                    </div>
+
+                    {filteredNotes.length === 0 ? (
+                        <div className="empty-state">
+
+                            <h3>
+                                {search
+                                    ? 'No notes found'
+                                    : 'No notes yet'}
+                            </h3>
 
                             <p>
                                 {search
-                                    ? `${filteredNotes.length} result${
-                                        filteredNotes.length !== 1
-                                            ? 's'
-                                            : ''
-                                    }`
-                                    : `${safeNotes.length} note${
-                                        safeNotes.length !== 1
-                                            ? 's'
-                                            : ''
-                                    }`
-                                }
+                                    ? 'Try searching for something else.'
+                                    : 'Create your first note to get started.'}
                             </p>
 
                         </div>
-
-                        <div className="desktop-search">
-
-                            <span>⌕</span>
-
-                            <input
-                                type="text"
-                                placeholder="Search your notes..."
-                                value={search}
-                                onChange={(e) =>
-                                    setSearch(e.target.value)
-                                }
-                            />
-
-                            {search && (
-                                <button
-                                    onClick={() => setSearch('')}
-                                    type="button"
-                                >
-                                    ×
-                                </button>
-                            )}
-
-                        </div>
-
-                    </div>
-
-                    {/* LOADING */}
-
-                    {loading && (
-                        <div className="skeleton-grid">
-
-                            <NoteSkeleton />
-                            <NoteSkeleton />
-                            <NoteSkeleton />
-                            <NoteSkeleton />
-                            <NoteSkeleton />
-                            <NoteSkeleton />
-
+                    ) : (
+                        <div className="notes-list">
+                            {filteredNotes.map((note) => (
+                                <ListItem
+                                    key={note.id}
+                                    note={note}
+                                />
+                            ))}
                         </div>
                     )}
-
-                    {/* EMPTY STATE */}
-
-                    {!loading &&
-                        filteredNotes.length === 0 && (
-
-                            <div className="empty-state">
-
-                                <div className="empty-icon">
-                                    {search ? '🔎' : '✍️'}
-                                </div>
-
-                                <h3>
-                                    {search
-                                        ? 'No notes found'
-                                        : 'Your notebook is empty'}
-                                </h3>
-
-                                <p>
-                                    {search
-                                        ? 'Try searching with a different keyword.'
-                                        : 'Start capturing your first idea.'}
-                                </p>
-
-                            </div>
-
-                        )
-                    }
-
-                    {/* NOTES */}
-
-                    {!loading &&
-                        filteredNotes.length > 0 && (
-
-                            <div className="notes-list">
-
-                                {filteredNotes.map((note) => (
-
-                                    <div
-                                        className="note-preview"
-                                        key={note.id}
-                                    >
-
-                                        <ListItem note={note} />
-
-                                    </div>
-
-                                ))}
-
-                            </div>
-
-                        )
-                    }
 
                 </section>
 
                 <AddButton />
 
-            </section>
-
-        </main>
+            </main>
+        </div>
     );
 };
 
