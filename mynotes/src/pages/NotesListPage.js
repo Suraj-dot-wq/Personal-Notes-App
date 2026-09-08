@@ -13,7 +13,6 @@ const NotesListPage = () => {
     const [loading, setLoading] = useState(true);
 
     const navigate = useNavigate();
-
     const { showToast } = useToast();
 
     useEffect(() => {
@@ -26,28 +25,43 @@ const NotesListPage = () => {
 
             const response = await apiFetch('/notes/');
 
+            // Unauthorized
             if (response.status === 401) {
                 logout();
-                navigate('/login');
+                setNotes([]);
+                navigate('/login', { replace: true });
 
                 showToast(
-                    'Your session has expired. Please log in again.',
+                    'Please log in to view your notes.',
                     'error'
                 );
 
                 return;
             }
 
+            // Other server errors
             if (!response.ok) {
                 throw new Error('Failed to load notes');
             }
 
             const data = await response.json();
 
-            setNotes(data);
+            // Make sure notes is always an array
+            if (Array.isArray(data)) {
+                setNotes(data);
+            } else {
+                console.error('Unexpected notes response:', data);
+                setNotes([]);
+                showToast(
+                    'Unable to load your notes.',
+                    'error'
+                );
+            }
 
         } catch (error) {
-            console.error(error);
+            console.error('Error loading notes:', error);
+
+            setNotes([]);
 
             showToast(
                 'Unable to load your notes.',
@@ -59,28 +73,37 @@ const NotesListPage = () => {
         }
     };
 
-    const filteredNotes = notes.filter((note) =>
+    // Extra protection against unexpected API responses
+    const safeNotes = Array.isArray(notes) ? notes : [];
+
+    const filteredNotes = safeNotes.filter((note) =>
         (note.body || '')
             .toLowerCase()
             .includes(search.toLowerCase())
     );
 
-    const recentNotes = notes.filter((note) => {
+    const recentNotes = safeNotes.filter((note) => {
+        if (!note.updated) {
+            return false;
+        }
+
         const noteDate = new Date(note.updated);
         const now = new Date();
 
         const difference =
             now.getTime() - noteDate.getTime();
 
-        return difference <
-            7 * 24 * 60 * 60 * 1000;
+        return (
+            difference >= 0 &&
+            difference < 7 * 24 * 60 * 60 * 1000
+        );
     });
 
     return (
         <main className="dashboard-layout">
 
             <Sidebar
-                noteCount={notes.length}
+                noteCount={safeNotes.length}
                 recentCount={recentNotes.length}
                 search={search}
                 setSearch={setSearch}
@@ -121,7 +144,7 @@ const NotesListPage = () => {
 
                         <div>
                             <span>Total notes</span>
-                            <strong>{notes.length}</strong>
+                            <strong>{safeNotes.length}</strong>
                         </div>
 
                     </div>
@@ -172,8 +195,8 @@ const NotesListPage = () => {
                                             ? 's'
                                             : ''
                                     }`
-                                    : `${notes.length} note${
-                                        notes.length !== 1
+                                    : `${safeNotes.length} note${
+                                        safeNotes.length !== 1
                                             ? 's'
                                             : ''
                                     }`
@@ -198,6 +221,7 @@ const NotesListPage = () => {
                             {search && (
                                 <button
                                     onClick={() => setSearch('')}
+                                    type="button"
                                 >
                                     ×
                                 </button>
@@ -207,10 +231,7 @@ const NotesListPage = () => {
 
                     </div>
 
-
-                    {/* =========================================
-                        LOADING SKELETON
-                    ========================================= */}
+                    {/* LOADING */}
 
                     {loading && (
                         <div className="skeleton-grid">
@@ -225,10 +246,7 @@ const NotesListPage = () => {
                         </div>
                     )}
 
-
-                    {/* =========================================
-                        EMPTY STATE
-                    ========================================= */}
+                    {/* EMPTY STATE */}
 
                     {!loading &&
                         filteredNotes.length === 0 && (
@@ -256,10 +274,7 @@ const NotesListPage = () => {
                         )
                     }
 
-
-                    {/* =========================================
-                        NOTES LIST
-                    ========================================= */}
+                    {/* NOTES */}
 
                     {!loading &&
                         filteredNotes.length > 0 && (
