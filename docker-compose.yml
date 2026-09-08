@@ -1,9 +1,7 @@
 services:
+
   nginx:
-    build:
-      context: .
-      dockerfile: nginx/Dockerfile
-    image: nginx
+    image: surajghadage2004/notes-nginx:latest
     container_name: nginx_cont
     ports:
       - "80:80"
