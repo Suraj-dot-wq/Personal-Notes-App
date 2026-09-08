@@ -1,15 +1,13 @@
-import React from 'react'
-import { Link } from 'react-router-dom'
-import { ReactComponent as Addicon } from '../assets/add.svg'
+import React from 'react';
+import { Link } from 'react-router-dom';
 
 const AddButton = () => {
-  return (
-    <div className='floating-button'>
-        <Link to='note/new/'>
-            <Addicon/>
+    return (
+        <Link to="/note/new" className="new-note-button">
+            <span className="plus-icon">+</span>
+            <span>New Note</span>
         </Link>
-    </div>
-  )
-}
+    );
+};
 
-export default AddButton
+export default AddButton;
