@@ -100,20 +100,24 @@ pipeline {
         stage('Security Scan') {
             steps {
                 sh '''
-                    echo "===== Trivy Scan: Django Image ====="
+                     echo "===== Preparing Trivy temporary directory ====="
 
-                    trivy image \
-                        --severity HIGH,CRITICAL \
-                        --exit-code 0 \
-                        ${DOCKER_APP}:${IMAGE_TAG}
+                     mkdir -p /var/lib/trivy-tmp
 
-                    echo "===== Trivy Scan: Nginx Image ====="
+                     echo "===== Trivy Scan: Django Image ====="
 
-                    trivy image \
-                        --severity HIGH,CRITICAL \
-                        --exit-code 0 \
-                        ${DOCKER_NGINX}:${IMAGE_TAG}
-                '''
+                     TMPDIR=/var/lib/trivy-tmp trivy image \
+                     --severity HIGH,CRITICAL \
+                     --exit-code 0 \
+                     ${DOCKER_APP}:${IMAGE_TAG}
+
+                     echo "===== Trivy Scan: Nginx Image ====="
+
+                     TMPDIR=/var/lib/trivy-tmp trivy image \
+                     --severity HIGH,CRITICAL \
+                     --exit-code 0 \
+                     ${DOCKER_NGINX}:${IMAGE_TAG}
+                  '''
             }
         }
 
