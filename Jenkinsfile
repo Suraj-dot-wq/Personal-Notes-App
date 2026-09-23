@@ -1,3 +1,4 @@
+```groovy
 pipeline {
 
     agent {
@@ -17,6 +18,39 @@ pipeline {
                 echo "Checking out NexaVault source code..."
 
                 checkout scm
+            }
+        }
+
+        stage('Create RDS Environment') {
+            steps {
+                withCredentials([
+                    string(
+                        credentialsId: 'nexavault-rds-password',
+                        variable: 'RDS_PASSWORD'
+                    )
+                ]) {
+
+                    sh '''
+                        set +x
+
+                        echo "Creating NexaVault RDS environment..."
+
+                        cat > .env <<EOF
+DB_NAME=nexavault
+DB_USER=nexavault_admin
+DB_PASSWORD=$RDS_PASSWORD
+DB_HOST=nexavault-mysql.cdcssqyw6r39.ap-south-1.rds.amazonaws.com
+DB_PORT=3306
+EOF
+
+                        chmod 600 .env
+
+                        echo "RDS environment file created successfully."
+                        echo "Database host configured."
+                        echo "Database port configured."
+                        echo "Database name configured."
+                    '''
+                }
             }
         }
 
@@ -56,7 +90,11 @@ pipeline {
         stage('Validate Docker Compose') {
             steps {
                 sh '''
+                    echo "===== Validating Docker Compose ====="
+
                     docker compose config
+
+                    echo "Docker Compose configuration is valid."
                 '''
             }
         }
@@ -78,6 +116,8 @@ pipeline {
                         -t ${DOCKER_NGINX}:latest \
                         -f nginx/Dockerfile \
                         .
+
+                    echo "Docker images built successfully."
                 '''
             }
         }
@@ -100,24 +140,26 @@ pipeline {
         stage('Security Scan') {
             steps {
                 sh '''
-                     echo "===== Preparing Trivy temporary directory ====="
+                    echo "===== Preparing Trivy temporary directory ====="
 
-                     mkdir -p /var/lib/trivy-tmp
+                    mkdir -p /var/lib/trivy-tmp
 
-                     echo "===== Trivy Scan: Django Image ====="
+                    echo "===== Trivy Scan: Django Image ====="
 
-                     TMPDIR=/var/lib/trivy-tmp trivy image \
-                     --severity HIGH,CRITICAL \
-                     --exit-code 0 \
-                     ${DOCKER_APP}:${IMAGE_TAG}
+                    TMPDIR=/var/lib/trivy-tmp trivy image \
+                        --severity HIGH,CRITICAL \
+                        --exit-code 0 \
+                        ${DOCKER_APP}:${IMAGE_TAG}
 
-                     echo "===== Trivy Scan: Nginx Image ====="
+                    echo "===== Trivy Scan: Nginx Image ====="
 
-                     TMPDIR=/var/lib/trivy-tmp trivy image \
-                     --severity HIGH,CRITICAL \
-                     --exit-code 0 \
-                     ${DOCKER_NGINX}:${IMAGE_TAG}
-                  '''
+                    TMPDIR=/var/lib/trivy-tmp trivy image \
+                        --severity HIGH,CRITICAL \
+                        --exit-code 0 \
+                        ${DOCKER_NGINX}:${IMAGE_TAG}
+
+                    echo "Security scans completed."
+                '''
             }
         }
 
@@ -147,6 +189,8 @@ pipeline {
                         docker push ${DOCKER_NGINX}:latest
 
                         docker logout
+
+                        echo "Docker images pushed successfully."
                     '''
                 }
             }
@@ -205,6 +249,7 @@ pipeline {
               NexaVault Deployment Successful
               Build: ${BUILD_NUMBER}
               Image Tag: ${IMAGE_TAG}
+              Database: AWS RDS MySQL
             ==========================================
             """
         }
@@ -220,6 +265,10 @@ pipeline {
 
         always {
             sh '''
+                echo "Cleaning generated RDS environment file..."
+
+                rm -f .env
+
                 echo "Cleaning unused Docker images..."
 
                 docker image prune -f || true
@@ -227,3 +276,4 @@ pipeline {
         }
     }
 }
+```
