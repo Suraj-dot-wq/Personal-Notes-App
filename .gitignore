@@ -1,31 +1,101 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
-# ignore .vscode folder
-.vscode
+# =========================
 
-# dependencies
-/node_modules
-/.pnp
+# VS Code
+
+# =========================
+
+.vscode/
+
+# =========================
+
+# Node.js dependencies
+
+# =========================
+
+node_modules/
+.pnp
 .pnp.js
 
-# testing
-/coverage
+# =========================
 
-# production
-/build
+# Testing
 
-# misc
-.DS_Store
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
+# =========================
+
+coverage/
+
+# =========================
+
+# Production / build files
+
+# =========================
+
+build/
+mynotes/build/
+
+# =========================
+
+# Environment variables
+
+# =========================
+
+.env
+.env.*
+!.env.example
+
+# =========================
+
+# Python
+
+# =========================
+
+**pycache**/
+*.py[cod]
+*$py.class
+
+# =========================
+
+# Terraform
+
+# =========================
+
+.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+crash.*.log
+*.tfvars
+*.tfvars.json
+
+# Keep Terraform lock file
+
+!.terraform.lock.hcl
+
+# =========================
+
+# Legacy Docker MySQL data
+
+# =========================
+
+data/mysql/
+
+# =========================
+
+# Logs
+
+# =========================
 
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
+# =========================
+
+# Operating system
+
+# =========================
+
+.DS_Store
+Thumbs.db
