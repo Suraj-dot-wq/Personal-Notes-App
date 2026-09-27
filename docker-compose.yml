@@ -1,5 +1,25 @@
 services:
 
+  mysql:
+    image: mysql:8.4
+    container_name: mysql_cont
+    restart: always
+    environment:
+      MYSQL_DATABASE: nexavault
+      MYSQL_USER: nexavault_admin
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "nexavault_admin", "-p${DB_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks:
+      - notes-app-nw
+
   nginx:
     image: surajghadage2004/notes-nginx:latest
     container_name: nginx_cont
@@ -20,6 +40,9 @@ services:
     env_file:
       - .env
     restart: always
+    depends_on:
+      mysql:
+        condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8000/admin || exit 1"]
       interval: 10s
@@ -28,6 +51,9 @@ services:
       start_period: 30s
     networks:
       - notes-app-nw
+
+volumes:
+  mysql_data:
 
 networks:
   notes-app-nw:

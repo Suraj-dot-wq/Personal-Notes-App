@@ -20,34 +20,39 @@ pipeline {
             }
         }
 
-        stage('Create RDS Environment') {
+        stage('Create MySQL Environment') {
             steps {
                 withCredentials([
                     string(
-                        credentialsId: 'nexavault-rds-password',
-                        variable: 'RDS_PASSWORD'
+                        credentialsId: 'nexavault-mysql-password',
+                        variable: 'DB_PASSWORD'
+                    ),
+                    string(
+                        credentialsId: 'nexavault-mysql-root-password',
+                        variable: 'MYSQL_ROOT_PASSWORD'
                     )
                 ]) {
 
                     sh '''
                         set +x
 
-                        echo "Creating NexaVault RDS environment..."
+                        echo "Creating NexaVault Docker MySQL environment..."
 
                         cat > .env <<EOF
 DB_NAME=nexavault
 DB_USER=nexavault_admin
-DB_PASSWORD=$RDS_PASSWORD
-DB_HOST=nexavault-mysql.cdcssqyw6r39.ap-south-1.rds.amazonaws.com
+DB_PASSWORD=$DB_PASSWORD
+DB_HOST=mysql
 DB_PORT=3306
+MYSQL_ROOT_PASSWORD=$MYSQL_ROOT_PASSWORD
 EOF
 
                         chmod 600 .env
 
-                        echo "RDS environment file created successfully."
-                        echo "Database host configured."
-                        echo "Database port configured."
-                        echo "Database name configured."
+                        echo "Docker MySQL environment file created successfully."
+                        echo "Database host: mysql"
+                        echo "Database port: 3306"
+                        echo "Database name: nexavault"
                     '''
                 }
             }
@@ -64,6 +69,7 @@ EOF
                     node --version
                     npm --version
                     docker --version
+                    docker compose version
                     git --version
                     trivy --version
                 '''
@@ -202,12 +208,12 @@ EOF
 
                     docker compose down || true
 
-                    echo "Pulling latest images..."
+                    echo "Pulling latest application images..."
 
                     docker pull ${DOCKER_APP}:latest
                     docker pull ${DOCKER_NGINX}:latest
 
-                    echo "Starting NexaVault..."
+                    echo "Starting NexaVault with MySQL..."
 
                     docker compose up -d --remove-orphans
 
@@ -218,16 +224,63 @@ EOF
             }
         }
 
-        stage('Health Check') {
+        stage('MySQL Health Check') {
             steps {
                 sh '''
-                    echo "Waiting for NexaVault to start..."
+                    echo "Waiting for MySQL to become healthy..."
+
+                    for i in $(seq 1 30); do
+
+                        STATUS=$(docker inspect \
+                            --format='{{.State.Health.Status}}' \
+                            mysql_cont 2>/dev/null || echo "missing")
+
+                        echo "MySQL health status: $STATUS"
+
+                        if [ "$STATUS" = "healthy" ]; then
+                            echo "MySQL is healthy."
+                            break
+                        fi
+
+                        if [ "$STATUS" = "missing" ]; then
+                            echo "ERROR: MySQL container was not found."
+                            docker compose ps
+                            exit 1
+                        fi
+
+                        sleep 5
+
+                    done
+
+                    FINAL_STATUS=$(docker inspect \
+                        --format='{{.State.Health.Status}}' \
+                        mysql_cont)
+
+                    if [ "$FINAL_STATUS" != "healthy" ]; then
+                        echo "ERROR: MySQL did not become healthy."
+                        docker logs --tail 100 mysql_cont
+                        exit 1
+                    fi
+
+                    echo "MySQL health check PASSED."
+                '''
+            }
+        }
+
+        stage('Django Health Check') {
+            steps {
+                sh '''
+                    echo "Waiting for Django to start..."
 
                     sleep 15
 
                     echo "===== Container Status ====="
 
                     docker compose ps
+
+                    echo "===== Django Logs ====="
+
+                    docker logs --tail 100 django_cont
 
                     echo "===== HTTP Health Check ====="
 
@@ -238,41 +291,86 @@ EOF
                 '''
             }
         }
+
+        stage('Verify MySQL Database') {
+            steps {
+                withCredentials([
+                    string(
+                        credentialsId: 'nexavault-mysql-password',
+                        variable: 'DB_PASSWORD'
+                    )
+                ]) {
+
+                    sh '''
+                        echo "===== Checking NexaVault database ====="
+
+                        docker exec \
+                            mysql_cont \
+                            mysql \
+                            -u nexavault_admin \
+                            -p"$DB_PASSWORD" \
+                            -e "SHOW DATABASES;"
+
+                        echo "===== Checking NexaVault tables ====="
+
+                        docker exec \
+                            mysql_cont \
+                            mysql \
+                            -u nexavault_admin \
+                            -p"$DB_PASSWORD" \
+                            nexavault \
+                            -e "SHOW TABLES;"
+
+                        echo "MySQL database verification PASSED."
+                    '''
+                }
+            }
+        }
+
+        stage('Final Deployment Status') {
+            steps {
+                sh '''
+                    echo "========================================="
+                    echo "       NEXAVAULT DEPLOYMENT STATUS"
+                    echo "========================================="
+
+                    docker compose ps
+
+                    echo ""
+                    echo "Database: Docker MySQL 8.4"
+                    echo "Database Host: mysql"
+                    echo "Database Port: 3306"
+                    echo "Database Name: nexavault"
+
+                    echo ""
+                    echo "NexaVault deployment completed successfully."
+
+                    echo "========================================="
+                '''
+            }
+        }
     }
 
     post {
 
         success {
-            echo """
-            ==========================================
-              NexaVault Deployment Successful
-              Build: ${BUILD_NUMBER}
-              Image Tag: ${IMAGE_TAG}
-              Database: AWS RDS MySQL
-            ==========================================
-            """
+            echo "NexaVault pipeline completed successfully."
+            echo "Application is running with Docker MySQL."
         }
 
         failure {
-            echo """
-            ==========================================
-              NexaVault Pipeline FAILED
-              Build: ${BUILD_NUMBER}
-            ==========================================
-            """
+            echo "NexaVault pipeline failed."
+            echo "Check the failed stage and Docker logs."
         }
 
         always {
             sh '''
-                echo "Cleaning generated RDS environment file..."
+                echo "===== Final Docker Status ====="
+                docker compose ps || true
 
+                echo "===== Cleaning generated environment file ====="
                 rm -f .env
-
-                echo "Cleaning unused Docker images..."
-
-                docker image prune -f || true
             '''
         }
     }
 }
-
